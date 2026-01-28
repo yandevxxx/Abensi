@@ -36,7 +36,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Group Mahasiswa (KRS & Attendance Submit)
     Route::middleware(['role:mahasiswa'])->group(function () {
-        Route::post('/krs/enroll', [EnrollmentController::class, 'store']);
+        Route::get('/krs', [EnrollmentController::class, 'index'])->name('krs.index');
+        Route::post('/krs/enroll', [EnrollmentController::class, 'store'])->name('krs.enroll');
         Route::post('/absensi/submit', [AttendanceController::class, 'submitAttendance']);
     });
 });

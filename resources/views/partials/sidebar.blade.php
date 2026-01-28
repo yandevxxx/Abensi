@@ -65,7 +65,7 @@
 
         @if($role === 'mahasiswa')
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('krs.index') }}">
                     <i class="fas fa-fw fa-edit"></i>
                     <span>Pengambilan KRS</span></a>
             </li>

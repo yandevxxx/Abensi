@@ -7,9 +7,31 @@ use App\Models\Kelas;
 use App\Models\Mahasiswa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class EnrollmentController extends Controller
 {
+    public function index()
+    {
+        $mahasiswa = Auth::user()->mahasiswa;
+        if (!$mahasiswa) {
+            return redirect()->route('dashboard')->with('error', 'Data mahasiswa tidak ditemukan.');
+        }
+
+        // Ambil kelas yang mata kuliahnya sesuai prodi dan semester <= semester mahasiswa
+        $availableClasses = Kelas::with(['mata_kuliah', 'dosen.user', 'jadwals'])
+            ->whereHas('mata_kuliah', function ($query) use ($mahasiswa) {
+                $query->where('prodi_id', $mahasiswa->prodi_id)
+                      ->where('semester', '<=', $mahasiswa->semester);
+            })
+            ->get();
+
+        // Ambil ID kelas yang sudah diambil
+        $takenClassIds = $mahasiswa->krs->pluck('kelas_id')->toArray();
+
+        return view('krs.index', compact('availableClasses', 'takenClassIds', 'mahasiswa'));
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -22,13 +44,12 @@ class EnrollmentController extends Controller
 
         // 1. Validasi Prodi
         if ($mahasiswa->prodi_id !== $kelas->mata_kuliah->prodi_id) {
-            return response()->json(['message' => 'Mata kuliah tidak sesuai dengan Prodi Anda.'], 422);
+            return back()->with('error', 'Mata kuliah tidak sesuai dengan Prodi Anda.');
         }
 
-        // 2. Validasi Semester (biasanya mahasiswa hanya bisa ambil MK semester ganjil di semester ganjil, dst)
-        // Namun ketentuan user "sesuai semester" - kita asumsikan semester MK harus <= semester mahasiswa saat ini
+        // 2. Validasi Semester
         if ($kelas->mata_kuliah->semester > $mahasiswa->semester) {
-            return response()->json(['message' => 'Anda belum bisa mengambil mata kuliah untuk semester di atas Anda.'], 422);
+            return back()->with('error', 'Anda belum bisa mengambil mata kuliah untuk semester di atas Anda.');
         }
 
         // 3. Validasi Mata Kuliah yang sama dua kali
@@ -37,7 +58,7 @@ class EnrollmentController extends Controller
         })->exists();
 
         if ($alreadyTaken) {
-            return response()->json(['message' => 'Anda sudah mengambil mata kuliah ini.'], 422);
+            return back()->with('error', 'Anda sudah mengambil mata kuliah ini.');
         }
 
         // 4. Validasi Maksimal SKS (misal 24)
@@ -46,7 +67,7 @@ class EnrollmentController extends Controller
         });
 
         if ($currentSks + $kelas->mata_kuliah->sks > 24) {
-            return response()->json(['message' => 'Maksimal SKS (24) terlampaui.'], 422);
+            return back()->with('error', 'Maksimal SKS (24) terlampaui.');
         }
 
         // 5. Validasi Bentrok Jadwal
@@ -54,12 +75,11 @@ class EnrollmentController extends Controller
             foreach ($existingKrs->kelas->jadwals as $existingJadwal) {
                 foreach ($kelas->jadwals as $newJadwal) {
                     if ($existingJadwal->hari === $newJadwal->hari) {
-                        // Cek overlap waktu
                         if (
                             ($newJadwal->jam_mulai >= $existingJadwal->jam_mulai && $newJadwal->jam_mulai < $existingJadwal->jam_selesai) ||
                             ($newJadwal->jam_selesai > $existingJadwal->jam_mulai && $newJadwal->jam_selesai <= $existingJadwal->jam_selesai)
                         ) {
-                            return response()->json(['message' => "Jadwal bentrok dengan kelas {$existingKrs->kelas->mata_kuliah->nama}."], 422);
+                            return back()->with('error', "Jadwal bentrok dengan kelas {$existingKrs->kelas->mata_kuliah->nama}.");
                         }
                     }
                 }
@@ -68,7 +88,7 @@ class EnrollmentController extends Controller
 
         // 6. Validasi Kuota
         if ($kelas->krs()->count() >= $kelas->kuota) {
-            return response()->json(['message' => 'Kuota kelas sudah penuh.'], 422);
+            return back()->with('error', 'Kuota kelas sudah penuh.');
         }
 
         KRS::create([
@@ -76,6 +96,6 @@ class EnrollmentController extends Controller
             'kelas_id' => $kelas->id,
         ]);
 
-        return response()->json(['message' => 'Berhasil mengambil mata kuliah.']);
+        return back()->with('success', 'Berhasil mengambil mata kuliah.');
     }
 }
