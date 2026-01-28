@@ -5,10 +5,15 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AcademicController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AuthController;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('login');
 });
+
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

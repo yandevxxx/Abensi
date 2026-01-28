@@ -38,6 +38,6 @@ class DashboardController extends Controller
                 break;
         }
 
-        return response()->json($data);
+        return view('dashboard', $data);
     }
 }
